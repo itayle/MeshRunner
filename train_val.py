@@ -357,14 +357,14 @@ def train_val(params,num_of_epochs_for_validtion):
       print("original loss:",str_to_print)
       if epoch % num_of_epochs_for_validtion ==0:
         acc = get_valid(params.logdir)
-        print("real_loss",acc)
+        print("current accuracy:", " 1walk: ",acc[0], "  4walks: ",acc[1] ,  "  16walks: ",acc[2])
         with open(params.logdir + "/eval_log.txt", 'at') as f:
           f.write("epoch: " + str(epoch) + " acc: " + str(acc) + " loss: " + str(round(train_logs[loss2show].result().numpy(), 2)) )
           f.write("\n")
   return last_loss
 
 
-def get_params(job, job_part, attention=False, saliency=False, custom_name=None):
+def get_params(job, job_part, attention=False, saliency=False,encodeJumps=False,walk_name="regular", custom_name=None):
   # Classifications
   job = job.lower()
 
@@ -372,7 +372,7 @@ def get_params(job, job_part, attention=False, saliency=False, custom_name=None)
     params = params_setting.modelnet_params()
 
   if job == 'shrec11':
-    params = params_setting.shrec11_params(job_part, attention, saliency, custom_name)
+    params = params_setting.shrec11_params(job_part, attention, saliency,encodeJumps, walk_name, custom_name)
 
   if job == 'cubes':
     params = params_setting.cubes_params()
@@ -387,15 +387,15 @@ def get_params(job, job_part, attention=False, saliency=False, custom_name=None)
 
 
 # optim in ['sgd', 'adam','cycle']
-def run_one_job(job, job_part, optim,lr,num_of_epochs_for_validtion, attention=False, saliency=False, custom_name=None):
+def run_one_job(job, job_part, optim,lr,num_of_epochs_for_validtion, attention=False, saliency=False, encodeJumps=False, walk_name="regular", custom_name=None):
   print("-"*50)
   print("-"*50)
   print("-"*50)
-  print('-'*9, "Itamar, Amit and Itay 3D Project" ,'-'*9)
+  print('-'*8, "Itamar, Amit and Itay 3D Project" ,'-'*8)
   print("-"*50)
   print("-"*50)
   print("-"*50)
-  params = get_params(job, job_part, attention, saliency, custom_name)
+  params = get_params(job, job_part, attention, saliency,encodeJumps,walk_name,custom_name)
   params.learning_rate = [lr,lr]
   params.optimizer_type = optim
   train_val(params,num_of_epochs_for_validtion)

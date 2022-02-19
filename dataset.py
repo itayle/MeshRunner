@@ -100,17 +100,23 @@ def data_augmentation_rotation(vertices):
 # ------------------------------------------------------------------ #
 # --- Some functions used to set up the RNN input "features" ------- #
 # ------------------------------------------------------------------ #
-def fill_xyz_features(features, f_idx, vertices, mesh_extra, seq, jumps, seq_len):
+def fill_xyz_features(features, f_idx, vertices, mesh_extra, seq, jumps, seq_len,encodejumps=False):
   walk = vertices[seq[1:seq_len + 1]]
   features[:, f_idx:f_idx + walk.shape[1]] = walk
   f_idx += 3
+  if encodejumps:
+    for j in range(features.shape[0]):
+      features[j][3] = jumps[j]
   return f_idx
 
 
-def fill_dxdydz_features(features, f_idx, vertices, mesh_extra, seq, jumps, seq_len):
+def fill_dxdydz_features(features, f_idx, vertices, mesh_extra, seq, jumps, seq_len, encodejumps=False):
   walk = np.diff(vertices[seq[:seq_len + 1]], axis=0) * 100
   features[:, f_idx:f_idx + walk.shape[1]] = walk
   f_idx += 3
+  if encodejumps:
+    for j in range(features.shape[0]):
+      features[j][3] = jumps[j]
   return f_idx
 
 
@@ -140,18 +146,39 @@ def setup_features_params(dataset_params, params):
   dataset_params.number_of_features = 0
   net_input = params.net_input
   if 'xyz' in net_input:
-    dataset_params.fill_features_functions.append(fill_xyz_features)
+     #dataset_params.fill_features_functions.append(fill_xyz_features)
+    dataset_params.fill_features_functions.append(\
+    lambda features, f_idx, vertices, mesh_extra, seq, jumps, seq_len:\
+    fill_xyz_features(features, f_idx, vertices, mesh_extra, seq, jumps, seq_len,params.encodejumps))
+
     dataset_params.number_of_features += 3
+    if params.encodejumps:
+      dataset_params.number_of_features += 1  
   if 'dxdydz' in net_input:
-    dataset_params.fill_features_functions.append(fill_dxdydz_features)
+    #dataset_params.fill_features_functions.append(fill_dxdydz_features)
+    dataset_params.fill_features_functions.append(\
+    lambda features, f_idx, vertices, mesh_extra, seq, jumps, seq_len:\
+    fill_dxdydz_features(features, f_idx, vertices, mesh_extra, seq, jumps, seq_len,params.encodejumps))
     dataset_params.number_of_features += 3
+    if params.encodejumps:
+      dataset_params.number_of_features += 1  
   if 'vertex_indices' in net_input:
     dataset_params.fill_features_functions.append(fill_vertex_indices)
     dataset_params.number_of_features += 1
 
   dataset_params.edges_needed = True
+  walk_func = None
   if params.walk_alg == 'random_global_jumps':
-    dataset_params.walk_function = walks.get_seq_random_walk_random_global_jumps
+
+    if params.walk_name == "skip":
+      walk_func = walks.regularWalkWithSkips
+    elif params.walk_name == "walk_with_jumps":
+      walk_func = walks.regularWalkWithJumps
+    elif params.walk_name == "order":
+      walk_func = walks.WalkInOrderlyFashion
+    else:
+       walk_func = walks.get_seq_random_walk_random_global_jumps
+    dataset_params.walk_function = walk_func #walks.get_seq_random_walk_random_global_jumps
   else:
     raise Exception('Walk alg not recognized: ' + params.walk_alg)
 
@@ -236,7 +263,7 @@ def mesh_data_to_walk_features(mesh_data, dataset_params, use_saliency):
     else:
         f0 = np.random.randint(vertices.shape[0])
 
-    seq, jumps = dataset_params.walk_function(vertices,mesh_extra, f0, seq_len)
+    seq, jumps = dataset_params.walk_function(mesh_extra, f0, seq_len)
 
     f_idx = 0
     for fill_ftr_fun in dataset_params.fill_features_functions:
