@@ -6,10 +6,12 @@ import numpy as np
 import utils
 import walks
 import dataset_prepare
+from saliency import *
 
 
 # Glabal list of dataset parameters. Used as part of runtime acceleration affort.
 dataset_params_list = []
+saliency_mem_dict = {}
 
 # ------------------------------------------------------------------ #
 # ---------- Some utility functions -------------------------------- #
@@ -162,12 +164,19 @@ def setup_features_params(dataset_params, params):
 def generate_walk_py_fun(fn, vertices, faces, edges, labels, params_idx):
   return tf.py_function(
     generate_walk,
-    inp=(fn, vertices, faces, edges, labels, params_idx),
+    inp=(fn, vertices, faces, edges, labels, params_idx, False),
+    Tout=(fn.dtype, vertices.dtype, tf.int32)
+  )
+
+def generate_walk_py_fun_saliency(fn, vertices, faces, edges, labels, params_idx):
+  return tf.py_function(
+    generate_walk,
+    inp=(fn, vertices, faces, edges, labels, params_idx, True),
     Tout=(fn.dtype, vertices.dtype, tf.int32)
   )
 
 
-def generate_walk(fn, vertices, faces, edges, labels_from_npz, params_idx):
+def generate_walk(fn, vertices, faces, edges, labels_from_npz, params_idx, use_saliency):
   mesh_data = {'vertices': vertices.numpy(),
                'faces': faces.numpy(),
                'edges': edges.numpy(),
@@ -176,7 +185,7 @@ def generate_walk(fn, vertices, faces, edges, labels_from_npz, params_idx):
     mesh_data['labels'] = labels_from_npz.numpy()
 
   dataset_params = dataset_params_list[params_idx[0].numpy()]
-  features, labels = mesh_data_to_walk_features(mesh_data, dataset_params)
+  features, labels = mesh_data_to_walk_features(mesh_data, dataset_params, use_saliency)
 
   if dataset_params_list[params_idx[0]].label_per_step:
     labels_return = labels
@@ -186,7 +195,7 @@ def generate_walk(fn, vertices, faces, edges, labels_from_npz, params_idx):
   return fn[0], features, labels_return
 
 
-def mesh_data_to_walk_features(mesh_data, dataset_params):
+def mesh_data_to_walk_features(mesh_data, dataset_params, use_saliency):
   vertices = mesh_data['vertices']
   seq_len = dataset_params.seq_len
   if dataset_params.set_seq_len_by_n_faces:
@@ -217,8 +226,16 @@ def mesh_data_to_walk_features(mesh_data, dataset_params):
   features = np.zeros((dataset_params.n_walks_per_model, seq_len, dataset_params.number_of_features), dtype=np.float32)
   labels   = np.zeros((dataset_params.n_walks_per_model, seq_len), dtype=np.int32)
 
+  if use_saliency:
+    saliency_res = compute_saliency(mesh_data, saliency_mem_dict)
+
+
   for walk_id in range(dataset_params.n_walks_per_model):
-    f0 = np.random.randint(vertices.shape[0])                               # Get walk starting point
+    if use_saliency:
+        f0 = np.random.choice(vertices.shape[0], p=saliency_res)
+    else:
+        f0 = np.random.randint(vertices.shape[0])
+
     seq, jumps = dataset_params.walk_function(vertices,mesh_extra, f0, seq_len)
 
     f_idx = 0
@@ -272,7 +289,7 @@ class OpenMeshDataset(tf.data.Dataset):
 
 def tf_mesh_dataset(params, pathname_expansion, mode=None, size_limit=np.inf, shuffle_size=1000,
                     permute_file_names=True, min_max_faces2use=[0, np.inf], data_augmentation={},
-                    must_run_on_all=False, min_dataset_size=16):
+                    must_run_on_all=False, min_dataset_size=16, use_saliency=False):
   params_idx = setup_dataset_params(params, data_augmentation)
   number_of_features = dataset_params_list[params_idx].number_of_features
   params.net_input_dim = number_of_features
@@ -312,7 +329,10 @@ def tf_mesh_dataset(params, pathname_expansion, mode=None, size_limit=np.inf, sh
   ds = ds.interleave(_open_npz_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
   ds = ds.cache()
   # until here, order doesnt matter for attention
-  ds = ds.map(generate_walk_py_fun, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+  if use_saliency:
+    ds = ds.map(generate_walk_py_fun_saliency, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+  else:
+    ds = ds.map(generate_walk_py_fun, num_parallel_calls=tf.data.experimental.AUTOTUNE)
   ds = ds.batch(params.batch_size, drop_remainder=False)
   ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
 

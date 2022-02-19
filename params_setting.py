@@ -7,13 +7,13 @@ import utils
 import dataset_prepare
 
 
-def set_up_default_params(network_task, run_name, cont_run_number=0, attention=False):
+def set_up_default_params(network_task, run_name, cont_run_number=0, attention=False, saliency=False):
   '''
   Define dafault parameters, commonly for many test case
   '''
   params = EasyDict()
   params.attention = attention
-
+  params.saliency = saliency
   params.cont_run_number = cont_run_number
   params.run_root_path = 'runs'
   params.logdir = utils.get_run_folder(params.run_root_path + '/', '__' + run_name, params.cont_run_number)
@@ -131,14 +131,14 @@ def cubes_params():
 
   return params
 
-def shrec11_params(split_part, attention=False, custom_name=None):
+def shrec11_params(split_part, attention=False, saliency=False, custom_name=None):
   # split_part is one of the following:
   # 10-10_A / 10-10_B / 10-10_C
   # 16-04_A / 16-04_B / 16-04_C
   run_name = 'shrec11_' + split_part
   if custom_name:
     run_name += "_" + custom_name
-  params = set_up_default_params('classification', run_name, 0, attention)
+  params = set_up_default_params('classification', run_name, 0, attention, saliency)
   params.n_classes = 30
   params.seq_len = 100
   params.min_seq_len = int(params.seq_len / 2)

@@ -50,7 +50,7 @@ def calc_accuracy_test(dataset_expansion=False, logdir=None, labels=None, iter2u
   # Prepare the dataset
   test_dataset, n_models_to_test = dataset.tf_mesh_dataset(params, dataset_expansion, mode=params.network_task,
                                                            shuffle_size=0, permute_file_names=True, min_max_faces2use=min_max_faces2use,
-                                                           must_run_on_all=True, data_augmentation=data_augmentation)
+                                                           must_run_on_all=True, data_augmentation=data_augmentation, use_saliency=params.saliency)
 
 
   # If dnn_model is not provided, load it
@@ -364,7 +364,7 @@ def train_val(params,num_of_epochs_for_validtion):
   return last_loss
 
 
-def get_params(job, job_part, attention=False, custom_name=None):
+def get_params(job, job_part, attention=False, saliency=False, custom_name=None):
   # Classifications
   job = job.lower()
 
@@ -372,7 +372,7 @@ def get_params(job, job_part, attention=False, custom_name=None):
     params = params_setting.modelnet_params()
 
   if job == 'shrec11':
-    params = params_setting.shrec11_params(job_part, attention, custom_name)
+    params = params_setting.shrec11_params(job_part, attention, saliency, custom_name)
 
   if job == 'cubes':
     params = params_setting.cubes_params()
@@ -387,7 +387,7 @@ def get_params(job, job_part, attention=False, custom_name=None):
 
 
 # optim in ['sgd', 'adam','cycle']
-def run_one_job(job, job_part, optim,lr,num_of_epochs_for_validtion, attention=False, custom_name=None):
+def run_one_job(job, job_part, optim,lr,num_of_epochs_for_validtion, attention=False, saliency=False, custom_name=None):
   print("-"*50)
   print("-"*50)
   print("-"*50)
@@ -395,7 +395,7 @@ def run_one_job(job, job_part, optim,lr,num_of_epochs_for_validtion, attention=F
   print("-"*50)
   print("-"*50)
   print("-"*50)
-  params = get_params(job, job_part, attention, custom_name)
+  params = get_params(job, job_part, attention, saliency, custom_name)
   params.learning_rate = [lr,lr]
   params.optimizer_type = optim
   train_val(params,num_of_epochs_for_validtion)
