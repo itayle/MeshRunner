@@ -4,7 +4,6 @@ Code for our [MeshRunner project](MeshRunner.pdf)
 
 * [About](#About)
     * [Authors](#Authors)
-    * [Project](#Project)
     * [Acknowledgements](#Acknowledgements)
 * [Background](#MeshWalker-Background)
 * [Colab notebook](#Colab-Notebook)
